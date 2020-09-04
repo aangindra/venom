@@ -78,16 +78,16 @@ const counter = new Counter();
  * Should be called to initialize whatsapp client
  */
 export async function create(
-  session = 'session',
-  catchQR?: (qrCode: string, asciiQR: string) => void,
-  statusFind?: (statusGet: string) => void,
-  options?: CreateConfig
+	session = 'session',
+	catchQR?: (qrCode: string, asciiQR: string) => void,
+	statusFind?: (statusGet: string) => void,
+	options?: CreateConfig
 ) {
-  const spinnies = new Spinnies({
-    disableSpins: options ? options.disableSpins : '',
-  });
+	const spinnies = new Spinnies({
+		disableSpins: options ? options.disableSpins : ''
+	});
 
-  console.log(`\n
+	console.log(`\n
 ▗▄ ▄ ▄  ▄▄▄ ▄   ▄▄▄  ▗▄▄▖▗▄▖ ▗▄▖▄▄▄▖                           
  █▟█▙█  █▄▄ █   █    █ ▐█ █ █ █ █▄▄                           
  ▐█ █▌  █▄▄ ███ ▜▄▛▘ ▜▙▟▀ █   █ █▄▄▖                           
@@ -104,128 +104,193 @@ export async function create(
                                  ▚▌
                                    \n`);
 
-  // Check for updates if needed
-  if (!updatesChecked) {
-    spinnies.add('venom-version-spinner', {
-      text: 'Checking for updates',
-    });
-    checkVenomVersion(spinnies);
-    updatesChecked = true;
-  }
+	// Check for updates if needed
+	if (!updatesChecked) {
+		spinnies.add('venom-version-spinner', {
+			text: 'Checking for updates'
+		});
+		checkVenomVersion(spinnies);
+		updatesChecked = true;
+	}
 
-  // Initialize whatsapp
-  spinnies.add(`${session}-auth`, {
-    text: 'Waiting...',
-  });
+	// Initialize whatsapp
+	spinnies.add(`${session}-auth`, {
+		text: 'Waiting...'
+	});
 
-  const mergedOptions = { ...defaultOptions, ...options };
-  let waPage = await initWhatsapp(session, mergedOptions);
+	const mergedOptions = { ...defaultOptions, ...options };
+	let waPage = await initWhatsapp(session, mergedOptions);
 
-  spinnies.update(`${session}-auth`, { text: 'Authenticating...' });
-  const authenticated = await isAuthenticated(waPage);
+	spinnies.update(`${session}-auth`, { text: 'Authenticating...' });
+	const authenticated = await isAuthenticated(waPage);
 
-  // If not authenticated, show QR and wait for scan
-  if (authenticated) {
-    // Wait til inside chat
-    if (statusFind) {
-      statusFind('isLogged');
-    }
+	// If not authenticated, show QR and wait for scan
+	if (authenticated) {
+		// Wait til inside chat
+		if (statusFind) {
+			statusFind('isLogged');
+		}
 
-    await isInsideChat(waPage).toPromise();
-    spinnies.succeed(`${session}-auth`, { text: 'Authenticated' });
-  } else {
-    if (statusFind) {
-      statusFind('notLogged');
-    }
-    spinnies.update(`${session}-auth`, {
-      text: `Authenticate to continue`,
-    });
+		await isInsideChat(waPage).toPromise();
+		spinnies.succeed(`${session}-auth`, { text: 'Authenticated' });
+	} else {
+		if (statusFind) {
+			statusFind('notLogged');
+		}
+		spinnies.update(`${session}-auth`, {
+			text: `Authenticate to continue`
+		});
 
-    if (mergedOptions.refreshQR <= 0 || mergedOptions.autoClose <= 0) {
-      const { data, asciiQR } = await retrieveQR(waPage);
-      if (catchQR) {
-        catchQR(data, asciiQR);
-      }
+		if (mergedOptions.refreshQR <= 0 || mergedOptions.autoClose <= 0) {
+			const { data, asciiQR } = await retrieveQR(waPage);
+			if (catchQR) {
+				catchQR(data, asciiQR);
+			}
 
-      if (mergedOptions.logQR) {
-        console.log(`Scan QR for: ${session}`);
-        console.log(asciiQR);
-      }
-    } else {
-      process.on('uncaughtException', function (err) {
-        if (
-          err.message ==
-          'Protocol error (Runtime.callFunctionOn): Target closed.'
-        )
-          spinnies.succeed(session + '-auth', { text: 'Auto closed!' });
-      });
+			if (mergedOptions.logQR) {
+				console.log(`Scan QR for: ${session}`);
+				console.log(asciiQR);
+			}
+		} else {
+			process.on('uncaughtException', function(err) {
+				if (err.message == 'Protocol error (Runtime.callFunctionOn): Target closed.')
+					spinnies.succeed(session + '-auth', { text: 'Auto closed!' });
+			});
 
-      mergedOptions.autoClose
-        ? grabQRUntilTimeOut(waPage, mergedOptions, session, catchQR)
-        : grabQRUntilInside(waPage, mergedOptions, session, catchQR);
-    }
+			mergedOptions.autoClose
+				? grabQRUntilTimeOut(waPage, mergedOptions, session, catchQR)
+				: grabQRUntilInside(waPage, mergedOptions, session, catchQR);
+		}
 
-    // Wait til inside chat
-    await isInsideChat(waPage).toPromise();
-    spinnies.succeed(`${session}-auth`, { text: 'Compilation Mutation' });
-  }
-  spinnies.add(`${session}-inject`, { text: 'Injecting Sibionte...' });
-  waPage = await injectApi(waPage);
-  spinnies.succeed(`${session}-inject`, { text: 'Starting With Success!' });
+		// Wait til inside chat
+		await isInsideChat(waPage).toPromise();
+		spinnies.succeed(`${session}-auth`, { text: 'Compilation Mutation' });
+	}
+	spinnies.add(`${session}-inject`, { text: 'Injecting Sibionte...' });
+	waPage = await injectApi(waPage);
+	spinnies.succeed(`${session}-inject`, { text: 'Starting With Success!' });
 
-  // Saving Token
-  spinnies.add(`${session}-inject`, { text: 'Saving Token...' });
-  if (true) {
-    const localStorage = JSON.parse(
-      await waPage.evaluate(() => {
-        return JSON.stringify(window.localStorage);
-      })
-    );
+	// Saving Token
+	spinnies.add(`${session}-inject`, { text: 'Saving Token...' });
+	if (true) {
+		const localStorage = JSON.parse(
+			await waPage.evaluate(() => {
+				return JSON.stringify(window.localStorage);
+			})
+		);
 
-    let { WABrowserId, WASecretBundle, WAToken1, WAToken2 } = localStorage;
+		let { WABrowserId, WASecretBundle, WAToken1, WAToken2 } = localStorage;
 
-    try {
-      setTimeout(() => {
-        mkdir(
-          path.join(path.resolve(process.cwd(), 'tokens')),
-          { recursive: true },
-          (err) => {
-            if (err) {
-              spinnies.fail(`${session}-inject`, {
-                text: 'Failed to create folder tokens...',
-              });
-            }
-          }
-        );
-      }, 200);
+		try {
+			setTimeout(() => {
+				mkdir(path.join(path.resolve(process.cwd(), 'tokens')), { recursive: true }, (err) => {
+					if (err) {
+						spinnies.fail(`${session}-inject`, {
+							text: 'Failed to create folder tokens...'
+						});
+					}
+				});
+			}, 200);
 
-      setTimeout(() => {
-        writeFileSync(
-          path.join(
-            path.resolve(process.cwd(), 'tokens'),
-            `${session}.data.json`
-          ),
-          JSON.stringify({ WABrowserId, WASecretBundle, WAToken1, WAToken2 })
-        );
-        spinnies.succeed(`${session}-inject`, {
-          text: 'Token saved successfully...',
-        });
-      }, 500);
-    } catch (error) {
-      spinnies.fail(`${session}-inject`, {
-        text: 'Failed to save token...',
-      });
-    }
-  }
+			setTimeout(() => {
+				writeFileSync(
+					path.join(path.resolve(process.cwd(), 'tokens'), `${session}.data.json`),
+					JSON.stringify({ WABrowserId, WASecretBundle, WAToken1, WAToken2 })
+				);
+				spinnies.succeed(`${session}-inject`, {
+					text: 'Token saved successfully...'
+				});
+			}, 500);
+		} catch (error) {
+			spinnies.fail(`${session}-inject`, {
+				text: 'Failed to save token...'
+			});
+		}
+	}
 
-  if (mergedOptions.debug) {
-    const debugURL = `http://localhost:${readFileSync(
-      `./${session}/DevToolsActivePort`
-    ).slice(0, -54)}`;
-    console.log(`\nDebug: \x1b[34m${debugURL}\x1b[0m`);
-  }
+	if (mergedOptions.debug) {
+		const debugURL = `http://localhost:${readFileSync(`./${session}/DevToolsActivePort`).slice(0, -54)}`;
+		console.log(`\nDebug: \x1b[34m${debugURL}\x1b[0m`);
+	}
 
-  return new Whatsapp(waPage);
+	return new Whatsapp(waPage);
+}
+
+export async function login(
+	session = 'session',
+	catchQR?: (qrCode: string, asciiQR: string) => void,
+	statusFind?: (statusGet: string) => void,
+	options?: CreateConfig
+) {
+	const spinnies = new Spinnies({
+		disableSpins: options ? options.disableSpins : ''
+	});
+	spinnies.add(`${session}-auth`, {
+		text: 'Waiting...'
+	});
+
+	console.log('Login.....');
+
+	const mergedOptions = { ...defaultOptions, ...options };
+	let waPage = await initWhatsapp(session, mergedOptions);
+
+	spinnies.update(`${session}-auth`, { text: 'Authenticating...' });
+	const authenticated = await isAuthenticated(waPage);
+
+	if (authenticated) {
+		// Wait til inside chat
+		if (statusFind) {
+			statusFind('isLogged');
+		}
+
+		await isInsideChat(waPage).toPromise();
+		spinnies.succeed(`${session}-auth`, { text: 'Authenticated' });
+	} else {
+		// Saving Token
+		// spinnies.add(`${session}-inject`, { text: 'Saving Token...' });
+		// if (true) {
+		// 	const localStorage = JSON.parse(
+		// 		await waPage.evaluate(() => {
+		// 			return JSON.stringify(window.localStorage);
+		// 		})
+		// 	);
+
+		// 	let { WABrowserId, WASecretBundle, WAToken1, WAToken2 } = localStorage;
+
+		// 	try {
+		// 		setTimeout(() => {
+		// 			mkdir(path.join(path.resolve(process.cwd(), 'tokens')), { recursive: true }, (err) => {
+		// 				if (err) {
+		// 					spinnies.fail(`${session}-inject`, {
+		// 						text: 'Failed to create folder tokens...'
+		// 					});
+		// 				}
+		// 			});
+		// 		}, 200);
+
+		// 		setTimeout(() => {
+		// 			writeFileSync(
+		// 				path.join(path.resolve(process.cwd(), 'tokens'), `${session}.data.json`),
+		// 				JSON.stringify({ WABrowserId, WASecretBundle, WAToken1, WAToken2 })
+		// 			);
+		// 			spinnies.succeed(`${session}-inject`, {
+		// 				text: 'Token saved successfully...'
+		// 			});
+		// 		}, 500);
+		// 	} catch (error) {
+		// 		spinnies.fail(`${session}-inject`, {
+		// 			text: 'Failed to save token...'
+		// 		});
+		// 	}
+		// }
+		console.log('not authenticated');
+		return false;
+	}
+	spinnies.add(`${session}-inject`, { text: 'Injecting Sibionte...' });
+	waPage = await injectApi(waPage);
+	spinnies.succeed(`${session}-inject`, { text: 'Starting With Success!' });
+
+	return new Whatsapp(waPage);
 }
 
 /**
@@ -237,82 +302,71 @@ const countDown = (msTimeOut: number) => counter.getElapsedTime() < msTimeOut;
  * Grab QRcode until timeout
  */
 function grabQRUntilTimeOut(
-  waPage: Page,
-  options: CreateConfig,
-  session: string,
-  catchQR: (qrCode: string, asciiQR: string) => void
+	waPage: Page,
+	options: CreateConfig,
+	session: string,
+	catchQR: (qrCode: string, asciiQR: string) => void
 ) {
-  const isInside = isInsideChat(waPage);
-  let timeInterval = 1000; //options.refreshQR > 0 && options.refreshQR <= options.autoClose ? options.refreshQR : 1000
-  counter.isFirstCall = true;
-  timer(0, timeInterval)
-    .pipe(
-      takeUntil(isInside),
-      switchMap(() => retrieveQR(waPage))
-    )
-    .subscribe(async ({ data, asciiQR }) => {
-      counter.counterInit();
-      // console.log(waPage.browser().process);
-      countDown(options.autoClose) ? null : await waPage.close(); //Close Imediatly
+	const isInside = isInsideChat(waPage);
+	let timeInterval = 1000; //options.refreshQR > 0 && options.refreshQR <= options.autoClose ? options.refreshQR : 1000
+	counter.isFirstCall = true;
+	timer(0, timeInterval)
+		.pipe(takeUntil(isInside), switchMap(() => retrieveQR(waPage)))
+		.subscribe(async ({ data, asciiQR }) => {
+			counter.counterInit();
+			// console.log(waPage.browser().process);
+			countDown(options.autoClose) ? null : await waPage.close(); //Close Imediatly
 
-      let timeOut = Math.round(
-        (options.autoClose - counter.getElapsedTime()) / 1000
-      );
+			let timeOut = Math.round((options.autoClose - counter.getElapsedTime()) / 1000);
 
-      if (catchQR) {
-        catchQR(data, asciiQR);
-      }
-      if (options.logQR) {
-        console.clear();
-        console.log(
-          'Scan QR for: ' +
-            session +
-            '                ' +
-            `(Time remaining for auto close ${timeOut} sec.)`
-        );
-        console.log(asciiQR);
-      }
-    });
+			if (catchQR) {
+				catchQR(data, asciiQR);
+			}
+			if (options.logQR) {
+				console.clear();
+				console.log(
+					'Scan QR for: ' + session + '                ' + `(Time remaining for auto close ${timeOut} sec.)`
+				);
+				console.log(asciiQR);
+			}
+		});
 }
 
 /**
  * Grab QRcode until synced (inside chat)
  */
 function grabQRUntilInside(
-  waPage: Page,
-  options: CreateConfig,
-  session: string,
-  catchQR: (qrCode: string, asciiQR: string) => void
+	waPage: Page,
+	options: CreateConfig,
+	session: string,
+	catchQR: (qrCode: string, asciiQR: string) => void
 ) {
-  const isInside = isInsideChat(waPage);
-  timer(0, options.refreshQR)
-    .pipe(
-      takeUntil(isInside),
-      switchMap(() => retrieveQR(waPage))
-    )
-    .subscribe(({ data, asciiQR }) => {
-      if (catchQR) {
-        catchQR(data, asciiQR);
-      }
-      if (options.logQR) {
-        console.clear();
-        console.log(`Scan QR for: ${session} `);
-        console.log(asciiQR);
-      }
-    });
+	const isInside = isInsideChat(waPage);
+	timer(0, options.refreshQR)
+		.pipe(takeUntil(isInside), switchMap(() => retrieveQR(waPage)))
+		.subscribe(({ data, asciiQR }) => {
+			if (catchQR) {
+				catchQR(data, asciiQR);
+			}
+			if (options.logQR) {
+				console.clear();
+				console.log(`Scan QR for: ${session} `);
+				console.log(asciiQR);
+			}
+		});
 }
 
 /**
  * Checs for a new versoin of venom and logs
  */
 function checkVenomVersion(spinnies) {
-  latestVersion('venom-bot').then((latest) => {
-    if (!upToDate(version, latest)) {
-      logUpdateAvailable(version, latest);
-    }
+	latestVersion('venom-bot').then((latest) => {
+		if (!upToDate(version, latest)) {
+			logUpdateAvailable(version, latest);
+		}
 
-    spinnies.succeed('venom-version-spinner', { text: 'Checking for updates' });
-  });
+		spinnies.succeed('venom-version-spinner', { text: 'Checking for updates' });
+	});
 }
 
 /**
@@ -321,16 +375,14 @@ function checkVenomVersion(spinnies) {
  * @param latest
  */
 function logUpdateAvailable(current: string, latest: string) {
-  // prettier-ignore
-  const newVersionLog =
+	// prettier-ignore
+	const newVersionLog =
     `There is a new version of ${chalk.bold(`Venom`)} ${chalk.gray(current)} ➜  ${chalk.bold.green(latest)}\n` +
     `Update your package by running:\n\n` +
     `${chalk.bold('\>')} ${chalk.blueBright('npm update venom-bot')}`;
 
-  console.log(boxen(newVersionLog, { padding: 1 }));
-  console.log(
-    `For more info visit: ${chalk.underline(
-      'https://github.com/orkestral/venom/blob/master/UPDATES.md'
-    )}\n`
-  );
+	console.log(boxen(newVersionLog, { padding: 1 }));
+	console.log(
+		`For more info visit: ${chalk.underline('https://github.com/orkestral/venom/blob/master/UPDATES.md')}\n`
+	);
 }
